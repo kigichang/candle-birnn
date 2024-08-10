@@ -4,3 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+candle-core = "0.6.0"
+candle-nn = "0.6.0"
+
+[dev-dependencies]
+anyhow = "1.0.86"
