@@ -180,10 +180,15 @@ mod tests {
 
     use super::*;
 
-    fn assert_eq_vec1(a: &Tensor, b: &Tensor, v: f32) -> Result<()> {
+    fn assert_tensor(a: &Tensor, b: &Tensor, dim: usize, v: f32) -> Result<()> {
         assert_eq!(a.dims(), b.dims());
+        let mut t = (a - b)?.abs()?;
 
-        let t = (a - b)?.abs()?.min(D::Minus1)?.to_scalar::<f32>()?;
+        for _i in 0..dim {
+            t = t.min(D::Minus1)?;
+        }
+
+        let t = t.to_scalar::<f32>()?;
         assert!(t < v);
         Ok(())
     }
@@ -206,12 +211,7 @@ mod tests {
         let b = Tensor::rand(-0.1_f32, 1.0_f32, (3, 5), &Device::Cpu)?;
         println!("b: {:?}", b);
 
-        let t = (a - b)?
-            .abs()?
-            .min(D::Minus1)?
-            .min(D::Minus1)?
-            .to_scalar::<f32>()?;
-        println!("t: {:?}", t);
+        assert_tensor(&a, &b, 2, 1.0)?;
 
         Ok(())
     }
