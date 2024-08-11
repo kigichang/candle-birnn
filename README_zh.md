@@ -1,10 +1,10 @@
 # Candle BiRNN
 
-Implementing PyTorch LSTM inference using Candle, including the implementation of bidirectional LSTM inference.
+使用 Candle 實作 PyTorch LSTM 推論，並實作雙向 LSTM 推論。
 
-## Test Data
+## 測試資料
 
-1. lstm_test.pt: Results generated using a PyTorch demo program. The code is as follows:
+1. lstm_test.pt: 使用 Pytorch demo 程式產生結果。程式碥如下：
 
     ```python
     import torch
@@ -22,7 +22,7 @@ Implementing PyTorch LSTM inference using Candle, including the implementation o
     torch.save(state_dict, "lstm_test.pt")
     ```
 
-1. bi_lstm_test.pt: Results generated using a PyTorch demo program. The code is as follows:
+1. bi_lstm_test.pt: 使用 Pytorch demo 程式產生結果。程式碥如下：
 
     ```python
     import torch
