@@ -26,7 +26,7 @@
 // FROM: https://gist.github.com/edokeh/7580064
 //
 
-use candle_core::{Result, Tensor};
+use candle_core::{IndexOp, Result, Tensor};
 use candle_nn::{rnn::LSTMState, LSTMConfig, VarBuilder, LSTM, RNN};
 
 pub use candle_nn::lstm;
@@ -107,6 +107,53 @@ pub trait BiRNN<'a> {
         ))
     }
 
+    fn seq(&'a self, input: &Tensor) -> Result<Vec<(Self::State, Self::State)>> {
+        let (batch_dim, _seq_len, _features) = input.dims3()?;
+        let init_state = self.zero_state(batch_dim)?;
+        self.seq_init(input, &init_state)
+    }
+
+    fn seq_init(
+        &'a self,
+        input: &Tensor,
+        init_state: &(Self::State, Self::State),
+    ) -> Result<Vec<(Self::State, Self::State)>> {
+        let (_batch_dim, seq_len, _features) = input.dims3()?;
+        let mut out_f = Vec::with_capacity(seq_len);
+        let mut out_b = Vec::with_capacity(seq_len);
+
+        let seq_len = seq_len - 1;
+        let f = self.forward();
+        let b = self.backward();
+        for seq_index in 0..=seq_len {
+            let input_f = input.i((.., seq_index, ..))?.contiguous()?;
+            let state_f = if seq_index == 0 {
+                f.step(&input_f, &init_state.0)?
+            } else {
+                f.step(&input_f, &out_f[seq_index - 1])?
+            };
+            out_f.push(state_f);
+
+            let input_b = input.i((.., seq_len - seq_index, ..))?.contiguous()?;
+            let state_b = if seq_index == 0 {
+                b.step(&input_b, &init_state.1)?
+            } else {
+                b.step(&input_b, &out_b[seq_index - 1])?
+            };
+            out_b.push(state_b);
+        }
+
+        out_b.reverse();
+
+        let output = out_f
+            .into_iter()
+            .zip(out_b.into_iter())
+            .map(|(f, b)| (f, b))
+            .collect::<Vec<_>>();
+
+        Ok(output)
+    }
+
     fn tch_seq(&'a self, input: &Tensor) -> Result<Vec<(Self::State, Self::State)>> {
         let (_seq_len, batch_dim, _features) = input.dims3()?;
         let init_state = self.zero_state(batch_dim)?;
@@ -155,6 +202,7 @@ pub trait BiRNN<'a> {
     }
 
     fn tch_states_to_tensor(&'a self, states: &[(Self::State, Self::State)]) -> Result<Tensor>;
+    fn states_to_tensor(&'a self, states: &[(Self::State, Self::State)]) -> Result<Tensor>;
 }
 
 /// Create a bidirectional LSTM layer.
@@ -200,6 +248,19 @@ impl<'a> BiRNN<'a> for BiLSTM {
             .collect::<Vec<_>>();
         Tensor::stack(&tensors, 0)
     }
+
+    fn states_to_tensor(&'a self, states: &[(Self::State, Self::State)]) -> Result<Tensor> {
+        let tensors = states
+            .iter()
+            .map(|s| {
+                let f = s.0.h().clone();
+                let b = s.1.h().clone();
+                //Tensor::cat(args, dim)
+                Tensor::cat(&[f, b], 1).unwrap()
+            })
+            .collect::<Vec<_>>();
+        Tensor::stack(&tensors, 1)
+    }
 }
 
 #[cfg(test)]
@@ -210,20 +271,21 @@ mod tests {
     use std::path::Path;
 
     use anyhow::Result;
-    //use candle_core::WithDType;
+    use candle_core::WithDType;
     use candle_core::{DType, Device, D};
     use candle_nn::VarBuilder;
-    //use std::fmt::Debug;
+    use std::fmt::Debug;
 
     use super::*;
 
-    // fn show_vec3<Dtype: WithDType + Debug>(input: &Vec<Vec<Vec<Dtype>>>) {
-    //     for a in input {
-    //         for b in a {
-    //             println!("{:?}", b)
-    //         }
-    //     }
-    // }
+    #[allow(dead_code)]
+    fn show_vec3<Dtype: WithDType + Debug>(input: &Vec<Vec<Vec<Dtype>>>) {
+        for a in input {
+            for b in a {
+                println!("{:?}", b)
+            }
+        }
+    }
 
     fn assert_tensor(a: &Tensor, b: &Tensor, dim: usize, v: f32) -> Result<()> {
         assert_eq!(a.dims(), b.dims());
@@ -287,6 +349,40 @@ mod tests {
         let output = bilstm.tch_states_to_tensor(&states)?;
 
         println!("{:?}", output.shape());
+        //show_vec3::<f32>(&output.to_vec3()?);
+        assert_tensor(&output, &answer, 3, 0.000001)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_candle_lstm() -> Result<()> {
+        let vb = load_pt("lstm_test.pt")?;
+        let lstm = lstm(IN_DIM, HIDDEN_DIM, LSTMConfig::default(), vb.clone())?;
+        let input = vb.get((5, 3, 10), "input")?;
+        let answer = vb.get((5, 3, 20), "output")?;
+
+        let input = input.transpose(0, 1)?.contiguous()?;
+        let states = lstm.seq(&input)?;
+        let output = lstm.states_to_tensor(&states)?;
+        let output = output.transpose(0, 1)?.contiguous()?;
+        //println!("{:?}", output.shape());
+        //show_vec3::<f32>(&output.to_vec3()?);
+        assert_tensor(&output, &answer, 3, 0.000001)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_candle_bilstm() -> Result<()> {
+        let vb = load_pt("bi_lstm_test.pt")?;
+        let bilstm = bi_lstm(IN_DIM, HIDDEN_DIM, LSTMConfig::default(), vb.clone())?;
+        let input = vb.get((5, 3, 10), "input")?;
+        let answer = vb.get((5, 3, 40), "output")?;
+
+        let input = input.transpose(0, 1)?.contiguous()?;
+        let states = bilstm.seq(&input)?;
+        let output = bilstm.states_to_tensor(&states)?;
+        let output = output.transpose(0, 1)?.contiguous()?;
+        //println!("{:?}", output.shape());
         //show_vec3::<f32>(&output.to_vec3()?);
         assert_tensor(&output, &answer, 3, 0.000001)?;
         Ok(())
