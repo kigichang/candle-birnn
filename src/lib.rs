@@ -38,7 +38,15 @@ pub fn reverse_lstm(
     config: LSTMConfig,
     vb: VarBuilder,
 ) -> Result<LSTM> {
-    let vb = vb.rename_f(|s| format!("{}_reverse", s));
+    let prefix = vb.prefix();
+    let vb = vb.rename_f(move |s| {
+        let s = format!("{}_reverse", s);
+        if prefix != "" {
+            s[prefix.len() + 1..].to_string()
+        } else {
+            s
+        }
+    });
     lstm(in_dim, hidden_dim, config, vb)
 }
 
