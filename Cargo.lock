@@ -138,8 +138,7 @@ dependencies = [
 [[package]]
 name = "candle-core"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5b18de020c2729dbf7ac390325312644808b6ba9b7962f1f724e9185b1d53c7"
+source = "git+https://github.com/huggingface/candle?branch=main#69fdcfe96ac05213b3b166140774f38a99de0b54"
 dependencies = [
  "accelerate-src",
  "byteorder",
@@ -162,8 +161,7 @@ dependencies = [
 [[package]]
 name = "candle-nn"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b006b30f66a0d94fc9cef0ac4de6ce510565f35ae2c6c35ce5d4aacfb0fc8eeb"
+source = "git+https://github.com/huggingface/candle?branch=main#69fdcfe96ac05213b3b166140774f38a99de0b54"
 dependencies = [
  "accelerate-src",
  "candle-core",

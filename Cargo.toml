@@ -12,8 +12,8 @@ keywords = ["candle", "lstm", "pytorch"]
 [dependencies]
 accelerate-src = { version = "0.3.2", optional = true }
 intel-mkl-src = { version = "0.8.1", optional = true }
-candle-core = "0.6.0"
-candle-nn = "0.6.0"
+candle-core = { git="https://github.com/huggingface/candle", branch="main" }
+candle-nn = { git="https://github.com/huggingface/candle", branch="main" }
 
 [dev-dependencies]
 anyhow = "1.0.86"
