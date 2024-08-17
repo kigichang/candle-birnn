@@ -26,6 +26,12 @@
 // FROM: https://gist.github.com/edokeh/7580064
 //
 
+#[cfg(feature = "accelerate")]
+extern crate accelerate_src;
+
+#[cfg(feature = "mkl")]
+extern crate intel_mkl_src;
+
 use candle_core::{IndexOp, Result, Tensor};
 use candle_nn::{rnn::LSTMState, LSTMConfig, VarBuilder, LSTM, RNN};
 
