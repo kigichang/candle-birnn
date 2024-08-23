@@ -32,6 +32,8 @@ extern crate accelerate_src;
 #[cfg(feature = "mkl")]
 extern crate intel_mkl_src;
 
+mod mylstm;
+
 use candle_core::{IndexOp, Result, Tensor};
 use candle_nn::{rnn::LSTMState, LSTMConfig, VarBuilder, LSTM, RNN};
 
@@ -279,8 +281,14 @@ impl<'a> BiRNN<'a> for BiLSTM {
 
 #[cfg(test)]
 mod tests {
-    static IN_DIM: usize = 10;
-    static HIDDEN_DIM: usize = 20;
+    const IN_DIM: usize = 768;
+    const HIDDEN_DIM: usize = 768;
+    const SEQ_LEN: usize = 256;
+    const BATCH_SIZE: usize = 1;
+    static BI_LSTM_BATCH_FALSE: &'static str = "bi_lstm_batch_false.pt";
+    static BI_LSTM_BATCH_TRUE: &'static str = "bi_lstm_batch_true.pt";
+    static LSTM_BATCH_FALSE: &'static str = "lstm_batch_false.pt";
+    static LSTM_BATCH_TRUE: &'static str = "lstm_batch_true.pt";
 
     use std::path::Path;
 
@@ -320,85 +328,119 @@ mod tests {
 
     #[test]
     fn test_reverse_lstm() -> Result<()> {
-        let vb = load_pt("bi_lstm_test.pt")?;
+        let vb = load_pt(BI_LSTM_BATCH_FALSE)?;
+        reverse_lstm(IN_DIM, HIDDEN_DIM, LSTMConfig::default(), vb)?;
+
+        let vb = load_pt(BI_LSTM_BATCH_TRUE)?;
         reverse_lstm(IN_DIM, HIDDEN_DIM, LSTMConfig::default(), vb)?;
         Ok(())
     }
 
+    // #[test]
+    // fn test_sub() -> Result<()> {
+    //     let a = Tensor::rand(-0.1_f32, 1.0_f32, (3, 5), &Device::Cpu)?;
+    //     println!("a: {:?}", a);
+    //     let b = Tensor::rand(-0.1_f32, 1.0_f32, (3, 5), &Device::Cpu)?;
+    //     println!("b: {:?}", b);
+
+    //     assert_tensor(&a, &b, 2, 1.0)?;
+
+    //     Ok(())
+    // }
+
     #[test]
-    fn test_sub() -> Result<()> {
-        let a = Tensor::rand(-0.1_f32, 1.0_f32, (3, 5), &Device::Cpu)?;
-        println!("a: {:?}", a);
-        let b = Tensor::rand(-0.1_f32, 1.0_f32, (3, 5), &Device::Cpu)?;
-        println!("b: {:?}", b);
-
-        assert_tensor(&a, &b, 2, 1.0)?;
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_tch_lstm() -> Result<()> {
-        let vb = load_pt("lstm_test.pt")?;
+    fn lstm_batch_false() -> Result<()> {
+        let vb = load_pt(LSTM_BATCH_FALSE)?;
         let lstm = lstm(IN_DIM, HIDDEN_DIM, LSTMConfig::default(), vb.clone())?;
-        let input = vb.get((5, 3, 10), "input")?;
-        let answer = vb.get((5, 3, 20), "output")?;
+        let input = vb.get((SEQ_LEN, BATCH_SIZE, IN_DIM), "input")?;
+        let answer = vb.get((SEQ_LEN, BATCH_SIZE, IN_DIM), "output")?;
 
+        let start = std::time::Instant::now();
         let states = lstm.tch_seq(&input)?;
         let output = lstm.tch_states_to_tensor(&states)?;
+        println!("lstm_batch_false: {:?}", start.elapsed().as_secs_f32());
 
-        //show_vec3::<f32>(&output.to_vec3()?);
         assert_tensor(&output, &answer, 3, 0.000001)?;
         Ok(())
     }
 
     #[test]
-    fn test_tch_bilstm() -> Result<()> {
-        let vb = load_pt("bi_lstm_test.pt")?;
+    fn bilstm_batch_false() -> Result<()> {
+        let vb = load_pt(BI_LSTM_BATCH_FALSE)?;
         let bilstm = bi_lstm(IN_DIM, HIDDEN_DIM, LSTMConfig::default(), vb.clone())?;
-        let input = vb.get((5, 3, 10), "input")?;
-        let answer = vb.get((5, 3, 40), "output")?;
+        let input = vb.get((SEQ_LEN, BATCH_SIZE, IN_DIM), "input")?;
+        let answer = vb.get((SEQ_LEN, BATCH_SIZE, IN_DIM * 2), "output")?;
 
+        let start = std::time::Instant::now();
         let states = bilstm.tch_seq(&input)?;
         let output = bilstm.tch_states_to_tensor(&states)?;
+        println!("bilstm_batch_false: {:?}", start.elapsed().as_secs_f32());
 
-        println!("{:?}", output.shape());
-        //show_vec3::<f32>(&output.to_vec3()?);
         assert_tensor(&output, &answer, 3, 0.000001)?;
         Ok(())
     }
 
     #[test]
-    fn test_candle_lstm() -> Result<()> {
-        let vb = load_pt("lstm_test.pt")?;
+    fn lstm_batch_true() -> Result<()> {
+        let vb = load_pt(LSTM_BATCH_TRUE)?;
         let lstm = lstm(IN_DIM, HIDDEN_DIM, LSTMConfig::default(), vb.clone())?;
-        let input = vb.get((5, 3, 10), "input")?;
-        let answer = vb.get((5, 3, 20), "output")?;
+        let input = vb.get((SEQ_LEN, BATCH_SIZE, IN_DIM), "input")?;
+        let answer = vb.get((SEQ_LEN, BATCH_SIZE, IN_DIM), "output")?;
 
-        let input = input.transpose(0, 1)?.contiguous()?;
+        let start = std::time::Instant::now();
         let states = lstm.seq(&input)?;
         let output = lstm.states_to_tensor(&states)?;
-        let output = output.transpose(0, 1)?.contiguous()?;
-        //println!("{:?}", output.shape());
-        //show_vec3::<f32>(&output.to_vec3()?);
+        println!("lstm_batch_true: {:?}", start.elapsed().as_secs_f32());
+
         assert_tensor(&output, &answer, 3, 0.000001)?;
         Ok(())
     }
 
     #[test]
-    fn test_candle_bilstm() -> Result<()> {
-        let vb = load_pt("bi_lstm_test.pt")?;
+    fn bilstm_batch_true() -> Result<()> {
+        let vb = load_pt(BI_LSTM_BATCH_TRUE)?;
         let bilstm = bi_lstm(IN_DIM, HIDDEN_DIM, LSTMConfig::default(), vb.clone())?;
-        let input = vb.get((5, 3, 10), "input")?;
-        let answer = vb.get((5, 3, 40), "output")?;
+        let input = vb.get((SEQ_LEN, BATCH_SIZE, IN_DIM), "input")?;
+        let answer = vb.get((SEQ_LEN, BATCH_SIZE, IN_DIM * 2), "output")?;
 
-        let input = input.transpose(0, 1)?.contiguous()?;
+        let start = std::time::Instant::now();
         let states = bilstm.seq(&input)?;
         let output = bilstm.states_to_tensor(&states)?;
-        let output = output.transpose(0, 1)?.contiguous()?;
-        //println!("{:?}", output.shape());
-        //show_vec3::<f32>(&output.to_vec3()?);
+        println!("bilstm_batch_true: {:?}", start.elapsed().as_secs_f32());
+
         assert_tensor(&output, &answer, 3, 0.000001)?;
+        Ok(())
+    }
+
+    #[test]
+    fn one() -> Result<()> {
+        let vb = load_pt(LSTM_BATCH_FALSE)?;
+        let lstm = lstm(IN_DIM, HIDDEN_DIM, LSTMConfig::default(), vb.clone())?;
+        let input = Tensor::randn(0.0_f32, 1.0, (1, 1, IN_DIM), &Device::Cpu)?;
+
+        let start = std::time::Instant::now();
+        let output = lstm.seq(&input)?;
+        lstm.states_to_tensor(&output)?;
+        println!("lstm one: {:?}", start.elapsed().as_secs_f32());
+
+        let vb = load_pt(BI_LSTM_BATCH_TRUE)?;
+        let bilstm = bi_lstm(IN_DIM, HIDDEN_DIM, LSTMConfig::default(), vb.clone())?;
+        let input = Tensor::randn(0.0_f32, 1.0, (1, 1, IN_DIM), &Device::Cpu)?;
+
+        let start = std::time::Instant::now();
+        let output = bilstm.seq(&input)?;
+        bilstm.states_to_tensor(&output)?;
+        println!("bilstm one: {:?}", start.elapsed().as_secs_f32());
+
+        Ok(())
+    }
+
+    #[test]
+    fn chunck() -> Result<()> {
+        let t = Tensor::randn(0.0_f32, 1.0, (SEQ_LEN, BATCH_SIZE, IN_DIM), &Device::Cpu)?;
+        let chunks = t.chunk(SEQ_LEN, 0)?;
+        println!("{:?} {:?}", chunks.len(), chunks[0].dims());
+
         Ok(())
     }
 }
