@@ -8,15 +8,16 @@ repository = "https://github.com/kigichang/candle-birnn"
 license-file = "LICENSE"
 keywords = ["candle", "lstm", "pytorch"]
 
+[[bin]]
+name = "lstm_opt"
 
 [dependencies]
 accelerate-src = { version = "0.3.2", optional = true }
 intel-mkl-src = { version = "0.8.1", optional = true }
-candle-core = "0.6.0"
-candle-nn = "0.6.0"
-
-[dev-dependencies]
+candle-core = { git="https://github.com/huggingface/candle", rev = "736d8eb7521dd48e777827848f2b9ed8a7473571"}
+candle-nn = { git="https://github.com/huggingface/candle", rev = "736d8eb7521dd48e777827848f2b9ed8a7473571"}
 anyhow = "1.0.86"
+
 
 [features]
 default = []
